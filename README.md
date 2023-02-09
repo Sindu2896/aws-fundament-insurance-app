@@ -22,9 +22,9 @@ serverless deploy
 After running deploy, you should see output similar to:
 
 ```bash
-Deploying aws-node-express-dynamodb-api-project to stage dev (us-east-1)
+Deploying insurance-app-demo to stage dev (us-east-1)
 
-✔ Service deployed to stack aws-node-express-dynamodb-api-project-dev (196s)
+✔ Service deployed to stack insurance-app-demo-dev (196s)
 
 endpoint: ANY - https://xxxxxxxxxx.execute-api.us-east-1.amazonaws.com
 functions:
@@ -38,13 +38,13 @@ _Note_: In current form, after deployment, your API is public and can be invoked
 After successful deployment, you can create a new user by calling the corresponding endpoint:
 
 ```bash
-curl --request POST 'https://xxxxxx.execute-api.us-east-1.amazonaws.com/users' --header 'Content-Type: application/json' --data-raw '{"name": "John", "userId": "someUserId"}'
+curl --request POST 'https://xxxxxx.execute-api.us-east-1.amazonaws.com/users' --header 'Content-Type: application/json' --data-raw '{"username": "John", "role": "member", "orgName": "Insighture"}'
 ```
 
 Which should result in the following response:
 
 ```bash
-{"userId":"someUserId","name":"John"}
+{"userId":"someUserId","username":"John","role": "member", "orgName": "Insighture"}
 ```
 
 You can later retrieve the user by `userId` by calling the following endpoint:
@@ -56,13 +56,13 @@ curl https://xxxxxxx.execute-api.us-east-1.amazonaws.com/users/someUserId
 Which should result in the following response:
 
 ```bash
-{"userId":"someUserId","name":"John"}
+{"userId":"someUserId","username":"John","role": "member", "orgName": "Insighture"}
 ```
 
 If you try to retrieve user that does not exist, you should receive the following response:
 
 ```bash
-{"error":"Could not find user with provided \"userId\""}
+{"error":"Record Not Found for userId: \"userId\""}
 ```
 
 ### Local development
