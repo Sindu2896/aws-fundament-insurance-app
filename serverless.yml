@@ -1,4 +1,4 @@
-service: insurance-demo
+service: insurance-app-demo
 frameworkVersion: '3'
 
   
