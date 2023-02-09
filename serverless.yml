@@ -1,0 +1,123 @@
+service: insurance-demo
+frameworkVersion: '3'
+
+  
+custom:
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'ap-southeast-2'}
+  tableName: 'insurance-${self:custom.stage}'
+
+plugins:
+  - serverless-offline
+
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  stage: ${self:custom.stage}
+  region: ${self:custom.region}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+          Resource:
+            - Fn::GetAtt: [ InsuranceTable, Arn ]
+  environment:
+    INSURANCE_TABLE: ${self:custom.tableName}
+    TABLE_AWS_REGION: ${opt:region, 'ap-southeast-2'}
+
+functions:
+  getUser:
+    handler: functions/user.getUser
+    events:
+      - httpApi:
+          path: /users/{userId}
+          method: get
+
+  createUser:
+    handler: functions/user.createUser
+    events:
+      - httpApi:
+          path: /users
+          method: post
+
+  getUserClaimInfo:
+    handler: functions/insuranceClaim.getClaims
+    events:
+      - httpApi:
+          path: /users/{userId}/claims
+          method: get
+
+  createInsuranceClaim:
+    handler: functions/insuranceClaim.createClaim
+    events:
+      - httpApi:
+          path: /users/{userId}/claims
+          method: post
+  
+  updateInsuranceClaim:
+    handler: functions/insuranceClaim.updateClaim
+    events:
+      - httpApi:
+          path: /users/{userId}/claims/{claimId}
+          method: patch
+
+  updateUserInsuranceBudget:
+    handler: functions/streamUpdates.updateUserBudget
+    events:
+      - stream:
+          type: dynamodb
+          arn:
+            Fn::GetAtt:
+              - InsuranceTable
+              - StreamArn
+          batchSize: 1
+          filterPatterns:
+            - eventName: [MODIFY]
+              dynamodb:
+                NewImage:
+                  status:
+                    S: [APPROVED]
+                OldImage:
+                  status:
+                    S:
+                      - anything-but: [APPROVED]
+
+
+resources:
+  Resources:
+    InsuranceTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.tableName}
+        AttributeDefinitions:
+          - AttributeName: userId
+            AttributeType: S
+          - AttributeName: attributeInfo
+            AttributeType: S
+          - AttributeName: orgName
+            AttributeType: S
+        KeySchema:
+          - AttributeName: userId
+            KeyType: HASH
+          - AttributeName: attributeInfo
+            KeyType: RANGE
+        GlobalSecondaryIndexes:
+          - IndexName: OrgName-AttributeInfo-index
+            KeySchema:
+              - AttributeName: orgName
+                KeyType: HASH
+              - AttributeName: attributeInfo
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+        BillingMode: PAY_PER_REQUEST
+        StreamSpecification:
+          StreamViewType: NEW_AND_OLD_IMAGES
