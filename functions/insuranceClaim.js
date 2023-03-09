@@ -7,10 +7,12 @@ const httpErrorHandler = require('@middy/http-error-handler');
 const inputOutputLogger = require('@middy/input-output-logger');
 const createError = require('http-errors');
 const { stringifyResponse } = require('./helpers');
+const { SQSClient, SendMessageCommand } = require("@aws-sdk/client-sqs");
 
 const TABLE_NAME = process.env.INSURANCE_TABLE || 'Insurance';
 const INITIAL_CLAIM_STATUS = 'PENDING';
-
+const CLAIM_QUEUE = process.env.CLAIM_QUEUE;
+const sqs = new SQSClient({ region: process.env.APP_AWS_REGION });
 
 const get = async (event) => {
   try {
@@ -83,6 +85,14 @@ const create = async (event) => {
 
 
     await documentClient.put(claimParams);
+    const sendMessageCommand = new SendMessageCommand({
+      MessageBody: JSON.stringify({
+        ...claimData,
+        event: 'creation'
+      }),
+      QueueUrl: CLAIM_QUEUE
+    });
+    await sqs.send(sendMessageCommand);
     return claimData;
   } catch (err) {
     throw createError(500, err);
@@ -130,7 +140,7 @@ const update = async (event) => {
     }
 
     updateExpression = updateExpression.slice(0, -1);
-
+    
 
     const params = {
       TableName: TABLE_NAME,

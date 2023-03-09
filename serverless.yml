@@ -6,6 +6,8 @@ custom:
   stage: ${opt:stage, 'dev'}
   region: ${opt:region, 'ap-southeast-2'}
   tableName: 'insurance-${self:custom.stage}'
+  claimQueueName: 'insurance-${self:custom.stage}-queue'
+  claimTopicName: 'insurance-${self:custom.stage}-claim-topic'
 
 plugins:
   - serverless-offline
@@ -29,9 +31,26 @@ provider:
             - dynamodb:DeleteItem
           Resource:
             - Fn::GetAtt: [ InsuranceTable, Arn ]
+        - Effect: Allow
+          Action:
+            - sqs:SendMessage
+          Resource:
+            - Fn::GetAtt: [ ClaimQueue, Arn ]
+        - Effect: Allow
+          Action:
+            - sqs:ReceiveMessage
+            - sqs:DeleteMessage
+          Resource:
+            - Fn::GetAtt: [ ClaimQueue, Arn ]
+        - Effect: Allow
+          Action:
+            - sns:Publish
+          Resource: { "Fn::Join" : ["", ["arn:aws:sns:${self:custom.region}:", { "Ref" : "AWS::AccountId" }, ":${self:custom.claimTopicName}" ] ]  }
   environment:
+    APP_AWS_REGION: ${opt:region, 'ap-southeast-1'}
     INSURANCE_TABLE: ${self:custom.tableName}
-    TABLE_AWS_REGION: ${opt:region, 'ap-southeast-2'}
+    CLAIM_QUEUE: ${self:custom.claimQueueName}
+    CLAIM_TOPIC_ARN: { "Fn::Join" : ["", ["arn:aws:sns:${self:custom.region}:", { "Ref" : "AWS::AccountId" }, ":${self:custom.claimTopicName}" ] ]  }
 
 functions:
   getUser:
@@ -90,6 +109,11 @@ functions:
                     S:
                       - anything-but: [APPROVED]
 
+  pollClaimFromSqs:
+    handler: functions/claimPoller.pollFromSqs
+    events:
+      - schedule: rate(30 minute)
+
 
 resources:
   Resources:
@@ -121,3 +145,22 @@ resources:
         BillingMode: PAY_PER_REQUEST
         StreamSpecification:
           StreamViewType: NEW_AND_OLD_IMAGES
+
+
+    ClaimQueue:
+      Type: 'AWS::SQS::Queue'
+      Properties:
+        QueueName: ${self:custom.claimQueueName}
+
+    ClaimTopic:
+      Type: AWS::SNS::Topic
+      Properties:
+        DisplayName: ${self:custom.claimTopicName}
+        TopicName: ${self:custom.claimTopicName}
+      
+    ClaimEmailSubscription:
+      Type: AWS::SNS::Subscription
+      Properties:
+        Protocol: email
+        TopicArn: !Ref ClaimTopic
+        Endpoint: support@insighture.com
